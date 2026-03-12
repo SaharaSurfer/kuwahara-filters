@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 
 
-def classic_kuwahara(image, radius: int = 3):
+def classic_kuwahara(image, radius: int = 3, return_decision_map: bool = False):
     """
     The Kuwahara filter works on a window divided into 4 overlapping
     subwindows. In each subwindow, the mean and variance are computed.
@@ -21,6 +21,16 @@ def classic_kuwahara(image, radius: int = 3):
     if radius == 0:
         return image.copy()
 
+    image_float = image.astype(np.float32) / 255.0
+    if image_float.ndim == 2:
+        image_float = image_float[..., np.newaxis]
+
+    image_float_sq = image_float**2
+
+    H, W, C = image_float.shape
+    means = np.zeros((4, H, W, C), dtype=np.float32)
+    variances = np.zeros((4, H, W), dtype=np.float32)
+
     subwindow_size = (radius + 1, radius + 1)
     subwindow_anchors = [
         (radius, radius),
@@ -29,48 +39,58 @@ def classic_kuwahara(image, radius: int = 3):
         (0, 0),
     ]
 
-    H, W = image.shape[:2]
-    means = np.zeros((4, H, W, 3), dtype=np.float32)
-    variances = np.zeros((4, H, W), dtype=np.float32)
-
-    img_float = image.astype(np.float32) / 255.0
-    img_float_sq = img_float**2
-
     for i, anchor in enumerate(subwindow_anchors):
         mean_rgb = cv2.boxFilter(
-            src=img_float,
+            src=image_float,
             ddepth=-1,
             ksize=subwindow_size,
             anchor=anchor,
             borderType=cv2.BORDER_REPLICATE,
-        )
+        ).reshape(H, W, C)
 
         mean_rgb_sq = cv2.boxFilter(
-            src=img_float_sq,
+            src=image_float_sq,
             ddepth=-1,
             ksize=subwindow_size,
             anchor=anchor,
             borderType=cv2.BORDER_REPLICATE,
-        )
+        ).reshape(H, W, C)
 
         var_per_channel = np.clip(mean_rgb_sq - mean_rgb**2, 0.0, None)
-        total_var = np.sum(var_per_channel, axis=2)
+        total_var = np.sum(var_per_channel, axis=-1)
 
         means[i] = mean_rgb
         variances[i] = total_var
 
-    min_var_idx = np.argmin(variances, axis=0)
+    decision_map = np.argmin(variances, axis=0)
 
     yy, xx = np.indices((H, W))
-    result = means[min_var_idx, yy, xx]
+    result = means[decision_map, yy, xx]
 
-    return np.clip(result * 255.0, 0, 255).astype(np.uint8)
+    result = np.clip(result * 255.0, 0, 255).astype(np.uint8)
+    if image.ndim == 2:
+        result = result.squeeze(axis=-1)
+
+    if return_decision_map:
+        return result, decision_map
+
+    return result
 
 
 def classic_kuwahara_flawed(image, radius: int = 3):
     if radius == 0:
         return image.copy()
 
+    image_float = image.astype(np.float32) / 255.0
+    if image_float.ndim == 2:
+        image_float = image_float[..., np.newaxis]
+
+    image_float_sq = image_float**2
+
+    H, W, C = image_float.shape
+    means = np.zeros((4, H, W, C), dtype=np.float32)
+    variances = np.zeros((4, H, W, C), dtype=np.float32)
+
     subwindow_size = (radius + 1, radius + 1)
     subwindow_anchors = [
         (radius, radius),
@@ -79,29 +99,22 @@ def classic_kuwahara_flawed(image, radius: int = 3):
         (0, 0),
     ]
 
-    H, W = image.shape[:2]
-    means = np.zeros((4, H, W, 3), dtype=np.float32)
-    variances = np.zeros((4, H, W, 3), dtype=np.float32)
-
-    img_float = image.astype(np.float32) / 255.0
-    img_float_sq = img_float**2
-
     for i, anchor in enumerate(subwindow_anchors):
         mean_rgb = cv2.boxFilter(
-            src=img_float,
+            src=image_float,
             ddepth=-1,
             ksize=subwindow_size,
             anchor=anchor,
             borderType=cv2.BORDER_REPLICATE,
-        )
+        ).reshape(H, W, C)
 
         mean_rgb_sq = cv2.boxFilter(
-            src=img_float_sq,
+            src=image_float_sq,
             ddepth=-1,
             ksize=subwindow_size,
             anchor=anchor,
             borderType=cv2.BORDER_REPLICATE,
-        )
+        ).reshape(H, W, C)
 
         var_per_channel = np.clip(mean_rgb_sq - mean_rgb**2, 0.0, None)
 
@@ -111,8 +124,12 @@ def classic_kuwahara_flawed(image, radius: int = 3):
     min_var_idx = np.argmin(variances, axis=0)
 
     yy, xx = np.indices((H, W))
-    result = np.zeros((H, W, 3), dtype=np.float32)
-    for c in range(3):
+    result = np.zeros((H, W, C), dtype=np.float32)
+    for c in range(C):
         result[:, :, c] = means[min_var_idx[:, :, c], yy, xx, c]
 
-    return np.clip(result * 255.0, 0, 255).astype(np.uint8)
+    result = np.clip(result * 255.0, 0, 255).astype(np.uint8)
+    if image.ndim == 2:
+        result = result.squeeze(axis=-1)
+
+    return result
