@@ -91,7 +91,7 @@ def anisotropic_kuwahara(
     sin_phi = cp.sin(phi)
     cos_phi = cp.cos(phi)
 
-    # The ellipse can stretch by up to (alpha+1)/alpha, so the effective
+    # The circle can stretch by up to (alpha+1)/alpha, so the effective
     # radius is larger than the base kernel radius.
     effective_radius = int(np.ceil(radius * (alpha + 1.0) / alpha))
     effective_radius_sq = effective_radius**2
