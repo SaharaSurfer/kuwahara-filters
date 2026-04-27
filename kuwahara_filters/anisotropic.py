@@ -2,7 +2,7 @@ import cupy as cp
 import numpy as np
 from cupyx.scipy.ndimage import gaussian_filter, map_coordinates
 
-from kuwahara_filters import generate_sector_weights
+from kuwahara_filters.generalized import generate_sector_weights
 
 
 def anisotropic_kuwahara(
